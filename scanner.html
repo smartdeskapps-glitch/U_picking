@@ -1,0 +1,369 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Escaneando...</title>
+  <style>
+    :root {
+      --orange: #F37021;
+      --orange-glow: rgba(243,112,33,0.4);
+      --bg: #080808;
+      --text: #fff;
+      --text-muted: rgba(255,255,255,0.45);
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+
+    html, body {
+      width: 100%; height: 100%; overflow: hidden;
+      background: var(--bg);
+      font-family: 'SF Pro Display', -apple-system, BlinkMacSystemFont, sans-serif;
+      display: flex; flex-direction: column;
+      align-items: center; justify-content: center;
+      user-select: none;
+    }
+
+    #title {
+      color: var(--text);
+      font-size: 0.95rem; font-weight: 600;
+      letter-spacing: 0.8px; text-transform: uppercase;
+      margin-bottom: 20px; text-align: center;
+      opacity: 0.85; padding: 0 24px;
+    }
+
+    #viewport {
+      position: relative;
+      width: min(78vw, 300px);
+      height: min(78vw, 300px);
+    }
+
+    #native-video {
+      width: 100%; height: 100%;
+      object-fit: cover;
+      border-radius: 18px;
+      display: block;
+    }
+
+    #reader {
+      width: 100%; height: 100%;
+      border-radius: 18px;
+      overflow: hidden;
+      display: none;
+    }
+    #reader video { border-radius: 18px !important; }
+
+    .corner {
+      position: absolute; width: 22px; height: 22px;
+      border-color: var(--orange); border-style: solid;
+      z-index: 20; pointer-events: none;
+    }
+    .corner.tl { top: -2px; left: -2px;  border-width: 3px 0 0 3px; border-radius: 6px 0 0 0; }
+    .corner.tr { top: -2px; right: -2px; border-width: 3px 3px 0 0; border-radius: 0 6px 0 0; }
+    .corner.bl { bottom: -2px; left: -2px;  border-width: 0 0 3px 3px; border-radius: 0 0 0 6px; }
+    .corner.br { bottom: -2px; right: -2px; border-width: 0 3px 3px 0; border-radius: 0 0 6px 0; }
+
+    #detect-box {
+      position: absolute;
+      top: 50%; left: 50%;
+      transform: translate(-50%, -50%);
+      width: 65%; height: 65%;
+      border: 1.5px dashed rgba(255,255,255,0.15);
+      border-radius: 8px;
+      z-index: 15; pointer-events: none;
+    }
+
+    #scan-line {
+      position: absolute;
+      left: 6%; right: 6%; height: 2px;
+      background: linear-gradient(90deg, transparent 0%, var(--orange) 30%, #FFB347 50%, var(--orange) 70%, transparent 100%);
+      border-radius: 2px;
+      z-index: 16; pointer-events: none;
+      box-shadow: 0 0 8px 2px var(--orange-glow);
+      animation: scanMove 1.4s cubic-bezier(0.45, 0, 0.55, 1) infinite;
+    }
+    @keyframes scanMove {
+      0%   { top: 8%;  opacity: 0; }
+      8%   { opacity: 1; }
+      92%  { opacity: 1; }
+      100% { top: 90%; opacity: 0; }
+    }
+
+    #success-overlay {
+      position: absolute; inset: 0;
+      background: rgba(34,197,94,0.25);
+      border-radius: 18px;
+      z-index: 30; display: none;
+      align-items: center; justify-content: center;
+    }
+    #success-overlay.show {
+      display: flex;
+      animation: successPop 0.3s ease-out forwards;
+    }
+    @keyframes successPop {
+      0%   { opacity: 0; transform: scale(0.95); }
+      60%  { opacity: 1; transform: scale(1.02); }
+      100% { opacity: 1; transform: scale(1); }
+    }
+    .success-icon {
+      width: 60px; height: 60px;
+      background: #22c55e;
+      border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+      box-shadow: 0 0 30px rgba(34,197,94,0.6);
+    }
+    .success-icon svg { width: 32px; height: 32px; }
+
+    #status {
+      color: var(--text-muted);
+      font-size: 0.78rem; font-weight: 500;
+      margin-top: 18px; text-align: center;
+      min-height: 18px; letter-spacing: 0.3px;
+      transition: color 0.2s;
+    }
+    #status.error { color: #f87171; }
+
+    #result-chip {
+      display: none;
+      margin-top: 10px;
+      background: rgba(243,112,33,0.12);
+      border: 1px solid rgba(243,112,33,0.3);
+      border-radius: 50px;
+      padding: 5px 16px;
+      color: var(--orange);
+      font-size: 0.8rem; font-weight: 700;
+      letter-spacing: 0.5px;
+      max-width: 80vw;
+      overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    }
+
+    #btn-cancel {
+      margin-top: 22px;
+      padding: 13px 48px;
+      background: rgba(255,255,255,0.07);
+      color: var(--text);
+      border: 1px solid rgba(255,255,255,0.12);
+      border-radius: 50px;
+      font-weight: 700; font-size: 0.9rem;
+      cursor: pointer; letter-spacing: 1px;
+      text-transform: uppercase;
+      transition: background 0.15s, transform 0.1s;
+    }
+    #btn-cancel:active { transform: scale(0.96); background: rgba(255,255,255,0.12); }
+
+    #method-badge {
+      position: fixed; top: 14px; right: 14px;
+      font-size: 0.6rem; font-weight: 700;
+      letter-spacing: 1px; text-transform: uppercase;
+      padding: 3px 8px; border-radius: 20px;
+      background: rgba(255,255,255,0.05);
+      color: rgba(255,255,255,0.25);
+      border: 1px solid rgba(255,255,255,0.07);
+    }
+  </style>
+</head>
+<body>
+
+  <div id="title">Escanea el código</div>
+
+  <div id="viewport">
+    <video id="native-video" autoplay playsinline muted></video>
+    <div id="reader"></div>
+    <div class="corner tl"></div>
+    <div class="corner tr"></div>
+    <div class="corner bl"></div>
+    <div class="corner br"></div>
+    <div id="detect-box"></div>
+    <div id="scan-line"></div>
+    <div id="success-overlay">
+      <div class="success-icon">
+        <svg viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
+          <polyline points="20 6 9 17 4 12"/>
+        </svg>
+      </div>
+    </div>
+  </div>
+
+  <div id="status">Iniciando cámara...</div>
+  <div id="result-chip"></div>
+  <button id="btn-cancel" onclick="cancelar()">Cancelar</button>
+  <div id="method-badge">–</div>
+
+  <script src="https://cdn.jsdelivr.net/npm/html5-qrcode/minified/html5-qrcode.min.js"></script>
+
+  <script>
+    const params   = new URLSearchParams(window.location.search);
+    const targetId = params.get('target') || '';
+    const title    = params.get('title')  || 'Escanea el código';
+    document.getElementById('title').textContent = title;
+
+    let done     = false;
+    let stream   = null;
+    let rafId    = null;
+    let fallback = null;
+
+    const video      = document.getElementById('native-video');
+    const statusEl   = document.getElementById('status');
+    const badge      = document.getElementById('method-badge');
+    const resultChip = document.getElementById('result-chip');
+    const successOv  = document.getElementById('success-overlay');
+
+    // Todos los formatos relevantes para logística
+    const FORMATS = [
+      'qr_code','code_128','code_39','code_93',
+      'ean_13','ean_8','upc_a','upc_e',
+      'data_matrix','aztec','pdf417','itf'
+    ];
+
+    async function iniciar() {
+      if ('BarcodeDetector' in window) {
+        const soportados = await BarcodeDetector.getSupportedFormats().catch(() => FORMATS);
+        const formatos   = FORMATS.filter(f => soportados.includes(f));
+        await iniciarNativo(formatos.length ? formatos : FORMATS);
+      } else {
+        await iniciarFallback();
+      }
+    }
+
+    // ── MODO NATIVO — BarcodeDetector + getUserMedia directo ────
+    // requestAnimationFrame → detecta en cada frame sin overhead de librería
+    async function iniciarNativo(formatos) {
+      badge.textContent = 'NATIVO';
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({
+          video: {
+            facingMode: { ideal: 'environment' },
+            width:      { ideal: 1920 },
+            height:     { ideal: 1080 },
+            frameRate:  { ideal: 60 },
+          }
+        });
+
+        video.srcObject = stream;
+        await video.play();
+
+        const detector = new BarcodeDetector({ formats: formatos });
+
+        // Clave: no bloqueamos el RAF esperando la detección
+        // Disparamos detect() y seguimos loopeando — si llega resultado lo procesamos
+        let detecting = false;
+
+        function detectLoop() {
+          if (done) return;
+          rafId = requestAnimationFrame(detectLoop);
+
+          // Si ya hay una detección en curso, no lanzar otra (evitar acumulación)
+          if (detecting || video.readyState < 4) return;
+
+          detecting = true;
+          detector.detect(video)
+            .then(results => {
+              detecting = false;
+              if (results.length > 0 && !done) onScanned(results[0].rawValue);
+            })
+            .catch(() => { detecting = false; });
+        }
+
+        video.addEventListener('canplay', () => {
+          statusEl.textContent = 'Apunta al código';
+          rafId = requestAnimationFrame(detectLoop);
+        }, { once: true });
+
+        setTimeout(() => {
+          if (!rafId && !done) rafId = requestAnimationFrame(detectLoop);
+        }, 1500);
+
+      } catch(err) {
+        detenerNativo();
+        await iniciarFallback();
+      }
+    }
+
+    function detenerNativo() {
+      if (rafId)  { cancelAnimationFrame(rafId); rafId = null; }
+      if (stream) { stream.getTracks().forEach(t => t.stop()); stream = null; }
+      video.style.display = 'none';
+    }
+
+    // ── MODO FALLBACK — html5-qrcode (Safari / Firefox) ────────
+    async function iniciarFallback() {
+      badge.textContent = 'JS';
+      video.style.display = 'none';
+      document.getElementById('reader').style.display = 'block';
+      try {
+        fallback = new Html5Qrcode('reader');
+        await fallback.start(
+          { facingMode: 'environment' },
+          {
+            fps: 60,
+            qrbox: { width: 280, height: 280 },
+            experimentalFeatures: { useBarCodeDetectorIfSupported: true },
+            aspectRatio: 1.0,
+            disableFlip: true, // evita procesamiento extra innecesario
+          },
+          onScanned,
+          () => {}
+        );
+        statusEl.textContent = 'Apunta al código';
+      } catch(err) {
+        statusEl.textContent = 'No se pudo acceder a la cámara.';
+        statusEl.classList.add('error');
+      }
+    }
+
+    async function detenerFallback() {
+      if (!fallback) return;
+      try {
+        const state = fallback.getState?.();
+        if (state === 2 || state === 3 || state === undefined) {
+          await fallback.stop().catch(() => {});
+        }
+        fallback.clear();
+      } catch(e) {}
+      fallback = null;
+    }
+
+    // ── Resultado ────────────────────────────────────────────────
+    function onScanned(rawCode) {
+      if (done) return;
+      done = true;
+
+      const code = String(rawCode).trim().toUpperCase();
+
+      // Feedback inmediato
+      successOv.classList.add('show');
+      resultChip.textContent = code;
+      resultChip.style.display = 'block';
+      statusEl.textContent = '¡Detectado!';
+
+      // Vibración háptica
+      if (navigator.vibrate) navigator.vibrate([30, 20, 30]);
+
+      // Detener streams
+      detenerNativo();
+      detenerFallback();
+
+      // Enviar y cerrar
+      setTimeout(() => {
+        if (window.opener) {
+          window.opener.postMessage({ type: 'SCAN_RESULT', targetId, code }, '*');
+        }
+        window.close();
+      }, 320);
+    }
+
+    // ── Cancelar ─────────────────────────────────────────────────
+    function cancelar() {
+      done = true;
+      detenerNativo();
+      detenerFallback();
+      if (window.opener) {
+        window.opener.postMessage({ type: 'SCAN_CANCEL', targetId }, '*');
+      }
+      window.close();
+    }
+
+    iniciar();
+  </script>
+</body>
+</html>

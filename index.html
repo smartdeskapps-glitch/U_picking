@@ -1,0 +1,270 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Dinet Logistics OS</title>
+
+  <link rel="manifest" href="manifest.json">
+  <link rel="apple-touch-icon" href="icon-192.png"> 
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="theme-color" content="#2C3E50">
+  <style>
+    * { box-sizing: border-box; }
+    html, body {
+      margin: 0; padding: 0; width: 100%; height: 100%;
+      overflow: hidden; background-color: #F8F9FB;
+      font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    }
+    
+    #splash-screen {
+      position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+      background: linear-gradient(135deg, #2C3E50 0%, #000000 100%);
+      z-index: 100000; display: flex; flex-direction: column;
+      align-items: center; justify-content: center;
+      transition: opacity 0.6s ease-out, visibility 0.6s;
+    }
+    .splash-text { color: white; font-size: 38px; font-weight: 900; letter-spacing: -1px; margin-bottom: 5px; text-shadow: 0 10px 30px rgba(0,0,0,0.5); }
+    .splash-sub { color: #F37021; font-size: 14px; font-weight: 700; letter-spacing: 4px; text-transform: uppercase; margin-bottom: 40px; }
+    .loader { width: 150px; height: 4px; background: rgba(255,255,255,0.1); border-radius: 4px; overflow: hidden; position: relative; }
+    .loader::after { content: ''; position: absolute; top: 0; left: 0; width: 50%; height: 100%; background: #F37021; border-radius: 4px; animation: loadingBar 1s infinite ease-in-out alternate; }
+    @keyframes loadingBar { from { left: 0; width: 20%; } to { left: 80%; width: 20%; } }
+    .splash-hidden { opacity: 0; visibility: hidden; pointer-events: none; }
+
+    iframe {
+      width: 100%; height: 100%; border: none; display: block;
+      -webkit-overflow-scrolling: touch; will-change: transform;
+      transform: translateZ(0); backface-visibility: hidden;
+    }
+
+    #pwa-install-banner { display: none; position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%); width: 90%; max-width: 400px; z-index: 9999; animation: floatUp 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275); }
+    .pwa-card { position: relative; display: flex; align-items: center; justify-content: space-between; padding: 16px 20px; background: rgba(44, 62, 80, 0.9); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); border-radius: 24px; box-shadow: 0 20px 50px -10px rgba(0,0,0,0.3); border: 1px solid rgba(255,255,255,0.1); color: white; }
+    .app-logo-text { font-size: 18px; font-weight: 800; color: #F37021; margin-right: 15px; display: flex; flex-direction: column; line-height: 1; }
+    .app-logo-text span { font-size: 10px; color: rgba(255,255,255,0.6); font-weight: 600; margin-top: 3px; }
+    .pwa-text h3 { margin: 0 0 2px 0; font-size: 15px; font-weight: 700; color: white; }
+    .pwa-text p { margin: 0; font-size: 12px; color: rgba(255,255,255,0.7); }
+    .btn-install { background: linear-gradient(135deg, #F37021 0%, #d65a0e 100%); color: white; border: none; padding: 10px 20px; border-radius: 50px; font-weight: 700; font-size: 13px; cursor: pointer; box-shadow: 0 5px 15px rgba(243,112,33,0.4); transition: transform 0.2s; white-space: nowrap; }
+    .btn-install:active { transform: scale(0.95); }
+    .btn-close { position: absolute; top: -10px; right: -10px; background: #2C3E50; color: white; border: 2px solid rgba(255,255,255,0.2); width: 26px; height: 26px; border-radius: 50%; font-size: 16px; cursor: pointer; display: flex; align-items: center; justify-content: center; box-shadow: 0 4px 10px rgba(0,0,0,0.2); }
+    @keyframes floatUp { from { opacity: 0; transform: translate(-50%, 20px); } to { opacity: 1; transform: translate(-50%, 0); } }
+
+    #ios-prompt { display: none; position: fixed; bottom: 30px; left: 50%; transform: translateX(-50%); width: 90%; max-width: 350px; background: #2C3E50; color: white; padding: 20px; border-radius: 20px; box-shadow: 0 20px 60px rgba(0,0,0,0.4); text-align: center; z-index: 10000; font-size: 14px; border: 1px solid rgba(255,255,255,0.1); }
+    #ios-prompt::after { content: ''; position: absolute; bottom: -10px; left: 50%; transform: translateX(-50%); border-width: 10px 10px 0; border-style: solid; border-color: #2C3E50 transparent transparent transparent; }
+    .ios-icon { font-size: 18px; color: #F37021; margin: 0 3px; }
+
+    /* ====== SCANNER NATIVO (vive en Netlify = tiene permisos de cámara) ====== */
+    #native-scanner-overlay {
+      display: none; position: fixed; inset: 0;
+      background: rgba(0,0,0,0.97); z-index: 200000;
+      flex-direction: column; align-items: center; justify-content: center;
+    }
+    #native-scanner-overlay.active { display: flex; }
+    #native-reader {
+      width: 300px; height: 300px; max-width: 88vw; max-height: 88vw;
+      border-radius: 20px; overflow: hidden;
+      border: 3px solid #F37021; background: #111;
+    }
+    #native-scanner-title {
+      color: white; font-size: 1rem; font-weight: 700;
+      margin-bottom: 20px; text-align: center; padding: 0 24px;
+      opacity: 0.85;
+    }
+    #native-scanner-cancel {
+      margin-top: 28px; padding: 14px 52px;
+      background: white; color: #2C3E50;
+      border: none; border-radius: 50px;
+      font-weight: 800; font-size: 1rem; cursor: pointer;
+      box-shadow: 0 8px 24px rgba(0,0,0,0.3);
+    }
+  </style>
+</head>
+<body>
+
+  <div id="splash-screen">
+    <div class="splash-text">DINET</div>
+    <div class="splash-sub">LOGISTICS OS</div>
+    <div class="loader"></div>
+  </div>
+
+  <iframe
+    id="app-frame"
+    src="https://script.google.com/macros/s/AKfycbwQiEfxemYgiJiS2N_RQBRNY6gzc-L_iOO2uMV2CTQno8xhflF39sQ6hIfxWMkuWWFX/exec"
+    allow="camera; microphone; geolocation; fullscreen; display-capture; clipboard-read; clipboard-write; autoplay"
+    allowfullscreen
+    sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-modals allow-downloads allow-top-navigation-by-user-activation allow-presentation"
+  ></iframe>
+
+  <!-- Scanner nativo: vive fuera del iframe, en el origen de Netlify -->
+  <div id="native-scanner-overlay">
+    <div id="native-scanner-title">Escanea el código</div>
+    <div id="native-reader"></div>
+    <button id="native-scanner-cancel" onclick="nativeScannerStop()">CANCELAR</button>
+  </div>
+
+  <div id="pwa-install-banner">
+    <div class="pwa-card">
+      <button class="btn-close" onclick="cerrarBanner()">×</button>
+      <div style="display: flex; align-items: center;">
+        <div class="app-logo-text">DINET<span>LOGISTICS OS</span></div>
+        <div class="pwa-text"><h3>Instalar App</h3><p>WMS & Operaciones</p></div>
+      </div>
+      <button class="btn-install" id="btn-install-trigger">Instalar</button>
+    </div>
+  </div>
+
+  <div id="ios-prompt">
+    Para instalar <strong>Dinet Logistics OS</strong>:<br><br>
+    1. Toca el botón <strong>Compartir</strong> <span class="ios-icon">⎋</span><br>
+    2. Selecciona <strong>"Agregar a Inicio"</strong> <span class="ios-icon">➕</span>
+    <div style="margin-top:15px;"><button onclick="document.getElementById('ios-prompt').style.display='none'" style="border:none; background:#F37021; color:white; padding:8px 20px; border-radius:50px; font-weight:bold;">Entendido</button></div>
+  </div>
+
+  <!-- html5-qrcode desde jsdelivr (mismo CDN que ya usas para Bootstrap) -->
+  <script src="https://cdn.jsdelivr.net/npm/html5-qrcode/minified/html5-qrcode.min.js"></script>
+
+  <script>
+    // ==================== SPLASH ====================
+    const iframe = document.getElementById('app-frame');
+    const splash = document.getElementById('splash-screen');
+    const hideSplash = () => {
+      splash.style.opacity = '0';
+      setTimeout(() => { splash.style.visibility = 'hidden'; splash.style.display = 'none'; }, 600);
+    };
+    iframe.onload = () => setTimeout(hideSplash, 500);
+    setTimeout(hideSplash, 4000);
+    setTimeout(() => { splash.classList.add('splash-hidden'); }, 6000);
+
+    // ==================== WATCHDOG: retry si Google bloquea el iframe ====================
+    // X-Frame-Options intermitente por cookies de terceros: si el iframe no confirma
+    // carga real (via postMessage) en X segundos, se recarga automáticamente.
+    const MAX_RETRIES = 3;
+    let retryCount = 0;
+    let frameConfirmed = false;
+    const originalSrc = iframe.src;
+
+    function watchdogCheck() {
+      if (frameConfirmed || retryCount >= MAX_RETRIES) return;
+      retryCount++;
+      console.warn('[Watchdog] Iframe sin confirmar, reintento', retryCount);
+      // cache-buster para forzar nueva request (evita servir el error cacheado)
+      iframe.src = originalSrc + (originalSrc.includes('?') ? '&' : '?') + '_r=' + Date.now();
+      setTimeout(watchdogCheck, 3500);
+    }
+    setTimeout(watchdogCheck, 3500);
+
+    // El doGet() de Apps Script puede confirmar carga enviando postMessage al padre:
+    // window.parent.postMessage({ type: 'APP_READY' }, '*');  (agregar en tu index.html de GAS)
+    window.addEventListener('message', (event) => {
+      if (event.data && event.data.type === 'APP_READY') frameConfirmed = true;
+    });
+
+    // ==================== PWA ====================
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', () => navigator.serviceWorker.register('./sw.js'));
+    }
+    let deferredPrompt;
+    const banner = document.getElementById('pwa-install-banner');
+    const btnInstall = document.getElementById('btn-install-trigger');
+    const isIos = /iphone|ipad|ipod/.test(navigator.userAgent.toLowerCase());
+    const isStandalone = window.matchMedia('(display-mode: standalone)').matches || navigator.standalone;
+    if (!isStandalone) {
+      window.addEventListener('beforeinstallprompt', (e) => {
+        e.preventDefault(); deferredPrompt = e; banner.style.display = 'block';
+      });
+      btnInstall.addEventListener('click', async () => {
+        if (deferredPrompt) {
+          deferredPrompt.prompt();
+          const { outcome } = await deferredPrompt.userChoice;
+          deferredPrompt = null; banner.style.display = 'none';
+        }
+      });
+      if (isIos) setTimeout(() => { document.getElementById('ios-prompt').style.display = 'block'; }, 3000);
+    }
+    function cerrarBanner() { banner.style.display = 'none'; }
+
+    // ==================== SCANNER NATIVO ====================
+    // El iframe (Apps Script) envía postMessage({ type: 'OPEN_SCANNER', targetId, title })
+    // Este parent lo intercepta, abre la cámara AQUÍ (dominio Netlify = permisos OK)
+    // y devuelve el resultado con postMessage({ type: 'SCAN_RESULT', targetId, code })
+
+    let _nativeScanner = null;
+    let _nativeScanTarget = null;
+
+    const overlay  = document.getElementById('native-scanner-overlay');
+    const titleEl  = document.getElementById('native-scanner-title');
+
+    async function nativeScannerStart(targetId, title) {
+      _nativeScanTarget = targetId;
+      titleEl.textContent = title || 'Escanea el código';
+      overlay.classList.add('active');
+
+      // Limpiar instancia anterior
+      if (_nativeScanner) {
+        try { await _nativeScanner.stop(); } catch(e) {}
+        try { _nativeScanner.clear(); } catch(e) {}
+        _nativeScanner = null;
+      }
+
+      // Pequeño delay para que el overlay tenga dimensiones
+      await new Promise(r => setTimeout(r, 150));
+
+      _nativeScanner = new Html5Qrcode('native-reader');
+      _nativeScanner.start(
+        { facingMode: 'environment' },
+        { fps: 12, qrbox: { width: 230, height: 230 } },
+        (decodedText) => {
+          const code = String(decodedText).trim().toUpperCase();
+          nativeScannerStop();
+          // Devolver resultado al iframe — apuntar al origen de Apps Script
+          iframe.contentWindow.postMessage(
+            { type: 'SCAN_RESULT', targetId: _nativeScanTarget, code },
+            '*'
+          );
+        },
+        () => {} // error frame a frame — ignorar
+      ).catch(err => {
+        nativeScannerStop();
+        const msg = err ? err.toString() : '';
+        console.error('[NativeScanner]', msg);
+        iframe.contentWindow.postMessage(
+          { type: 'SCAN_ERROR', targetId: _nativeScanTarget, error: msg },
+          '*'
+        );
+      });
+    }
+
+    async function nativeScannerStop() {
+      overlay.classList.remove('active');
+      if (_nativeScanner) {
+        try {
+          const state = _nativeScanner.getState?.();
+          if (state === 2 || state === 3 || state === undefined) {
+            await _nativeScanner.stop().catch(() => {});
+          }
+          _nativeScanner.clear();
+        } catch(e) {}
+        _nativeScanner = null;
+      }
+    }
+
+    // Escuchar mensajes del iframe
+    window.addEventListener('message', (event) => {
+      // Solo aceptar mensajes del iframe de Apps Script
+      if (!event.origin || !event.origin.includes('google.com')) return;
+      const d = event.data;
+      if (!d || typeof d !== 'object') return;
+      // Solo procesar mensajes que son nuestros (tienen el campo 'type')
+      if (!d.type || !['OPEN_SCANNER','CLOSE_SCANNER'].includes(d.type)) return;
+
+      if (d.type === 'OPEN_SCANNER') {
+        nativeScannerStart(d.targetId, d.title);
+      }
+      if (d.type === 'CLOSE_SCANNER') {
+        nativeScannerStop();
+      }
+    });
+  </script>
+
+</body>
+</html>
