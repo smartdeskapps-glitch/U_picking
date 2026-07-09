@@ -135,29 +135,7 @@
     setTimeout(hideSplash, 4000);
     setTimeout(() => { splash.classList.add('splash-hidden'); }, 6000);
 
-    // ==================== WATCHDOG: retry si Google bloquea el iframe ====================
-    // X-Frame-Options intermitente por cookies de terceros: si el iframe no confirma
-    // carga real (via postMessage) en X segundos, se recarga automáticamente.
-    const MAX_RETRIES = 3;
-    let retryCount = 0;
-    let frameConfirmed = false;
-    const originalSrc = iframe.src;
 
-    function watchdogCheck() {
-      if (frameConfirmed || retryCount >= MAX_RETRIES) return;
-      retryCount++;
-      console.warn('[Watchdog] Iframe sin confirmar, reintento', retryCount);
-      // cache-buster para forzar nueva request (evita servir el error cacheado)
-      iframe.src = originalSrc + (originalSrc.includes('?') ? '&' : '?') + '_r=' + Date.now();
-      setTimeout(watchdogCheck, 3500);
-    }
-    setTimeout(watchdogCheck, 3500);
-
-    // El doGet() de Apps Script puede confirmar carga enviando postMessage al padre:
-    // window.parent.postMessage({ type: 'APP_READY' }, '*');  (agregar en tu index.html de GAS)
-    window.addEventListener('message', (event) => {
-      if (event.data && event.data.type === 'APP_READY') frameConfirmed = true;
-    });
 
     // ==================== PWA ====================
     if ('serviceWorker' in navigator) {
